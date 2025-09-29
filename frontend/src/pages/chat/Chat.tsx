@@ -43,7 +43,10 @@ const Chat = () => {
     const [activeAnalysisPanelTab, setActiveAnalysisPanelTab] = useState<AnalysisPanelTabs | undefined>(undefined);
 
     const [selectedAnswer, setSelectedAnswer] = useState<number>(0);
-    const [answers, setAnswers] = useState<[user: string, response: AskResponse][]>([]);
+    // Store tuple: [user question text, response, optional image preview data URL]
+    const [answers, setAnswers] = useState<[user: string, response: AskResponse, imagePreview?: string | null][]>([]);
+    // Image for the in-flight user question (shown while loading or on error)
+    const [pendingImage, setPendingImage] = useState<string | null>(null);
 
     const [userId, setUserId] = useState<string>("");
     const triggered = useRef(false);
@@ -59,6 +62,18 @@ const Chat = () => {
 
         try {
             const history: ChatTurn[] = answers.map(a => ({ user: a[0], bot: a[1].answer }));
+
+            // Prepare image preview immediately (so it displays during loading)
+            let imageDataUrl: string | null = null;
+            if (file && file.type.startsWith("image/")) {
+                imageDataUrl = await new Promise<string | null>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target?.result as string | null);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(file);
+                });
+                setPendingImage(imageDataUrl);
+            }
             const request: ChatRequestGpt = {
                 history: [...history, { user: question, bot: undefined }],
                 approach: Approaches.ReadRetrieveRead,
@@ -83,7 +98,8 @@ const Chat = () => {
                 result.thoughts = "No thought process available.";
             }
 
-            setAnswers([...answers, [question, result]]);
+            setAnswers([...answers, [question, result, imageDataUrl]]);
+            setPendingImage(null);
             setUserId(result.conversation_id);
 
             // Voice Synthesis
@@ -277,7 +293,7 @@ const Chat = () => {
                         <div className={styles.chatMessageStream}>
                             {answers.map((answer, index) => (
                                 <div key={index}>
-                                    <UserChatMessage message={answer[0]} />
+                                    <UserChatMessage message={answer[0]} imageUrl={answer[2]} />
                                     <div className={styles.chatMessageGpt}>
                                         <Answer
                                             key={index}
@@ -295,7 +311,7 @@ const Chat = () => {
                             ))}
                             {isLoading && (
                                 <>
-                                    <UserChatMessage message={lastQuestionRef.current} />
+                                    <UserChatMessage message={lastQuestionRef.current} imageUrl={pendingImage} />
                                     <div className={styles.chatMessageGptMinWidth}>
                                         <AnswerLoading />
                                     </div>
@@ -303,7 +319,7 @@ const Chat = () => {
                             )}
                             {error ? (
                                 <>
-                                    <UserChatMessage message={lastQuestionRef.current} />
+                                    <UserChatMessage message={lastQuestionRef.current} imageUrl={pendingImage} />
                                     <div className={styles.chatMessageGptMinWidth}>
                                         <AnswerError 
                                             error={error.toString() === "SyntaxError: Unexpected end of JSON input" 
