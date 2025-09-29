@@ -3,17 +3,16 @@ import { AskRequest, AskResponse, AskResponseGpt, ChatRequest, ChatRequestGpt } 
 
 
 export async function chatApiGpt(options: ChatRequestGpt): Promise<AskResponseGpt> {
-    const response = await fetch("/chatgpt", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            history: options.history,
-            approach: options.approach,
-            conversation_id: options.conversation_id,
-            query: options.query,
-            overrides: {
+    let response;
+    if (options.file) {
+        const formData = new FormData();
+        formData.append("file", options.file);
+        formData.append("history", JSON.stringify(options.history));
+        formData.append("approach", options.approach);
+        formData.append("conversation_id", options.conversation_id);
+        formData.append("query", options.query);
+        if (options.overrides) {
+            formData.append("overrides", JSON.stringify({
                 semantic_ranker: options.overrides?.semanticRanker,
                 semantic_captions: options.overrides?.semanticCaptions,
                 top: options.overrides?.top,
@@ -23,9 +22,37 @@ export async function chatApiGpt(options: ChatRequestGpt): Promise<AskResponseGp
                 prompt_template_suffix: options.overrides?.promptTemplateSuffix,
                 exclude_category: options.overrides?.excludeCategory,
                 suggest_followup_questions: options.overrides?.suggestFollowupQuestions
-            }
-        })
-    });
+            }));
+        }
+        response = await fetch("/chatgpt", {
+            method: "POST",
+            body: formData
+        });
+    } else {
+        response = await fetch("/chatgpt", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                history: options.history,
+                approach: options.approach,
+                conversation_id: options.conversation_id,
+                query: options.query,
+                overrides: {
+                    semantic_ranker: options.overrides?.semanticRanker,
+                    semantic_captions: options.overrides?.semanticCaptions,
+                    top: options.overrides?.top,
+                    temperature: options.overrides?.temperature,
+                    prompt_template: options.overrides?.promptTemplate,
+                    prompt_template_prefix: options.overrides?.promptTemplatePrefix,
+                    prompt_template_suffix: options.overrides?.promptTemplateSuffix,
+                    exclude_category: options.overrides?.excludeCategory,
+                    suggest_followup_questions: options.overrides?.suggestFollowupQuestions
+                }
+            })
+        });
+    }
 
     const parsedResponse: AskResponseGpt = await response.json();
     if (response.status > 299 || !response.ok) {

@@ -49,7 +49,7 @@ const Chat = () => {
     const triggered = useRef(false);
 
 
-    const makeApiRequestGpt = async (question: string) => {
+    const makeApiRequestGpt = async (question: string, file?: File | null) => {
         lastQuestionRef.current = question;
 
         error && setError(undefined);
@@ -64,6 +64,7 @@ const Chat = () => {
                 approach: Approaches.ReadRetrieveRead,
                 conversation_id: userId,
                 query: question,
+                file: file || undefined,
                 overrides: {
                     promptTemplate: promptTemplate.length === 0 ? undefined : promptTemplate,
                     excludeCategory: excludeCategory.length === 0 ? undefined : excludeCategory,
@@ -76,7 +77,7 @@ const Chat = () => {
             const result = await chatApiGpt(request);
             console.log(result);
             console.log(result.answer);
-            
+
             // Check if result.thoughts exists
             if (!result.thoughts) {
                 result.thoughts = "No thought process available.";
@@ -274,25 +275,25 @@ const Chat = () => {
                         </div>
                     ) : (
                         <div className={styles.chatMessageStream}>
-                                {answers.map((answer, index) => (
-                                    <div key={index}>
-                                        <UserChatMessage message={answer[0]} />
-                                        <div className={styles.chatMessageGpt}>
-                                            <Answer
-                                                key={index}
-                                                answer={answer[1]}
-                                                isSelected={selectedAnswer === index && activeAnalysisPanelTab !== undefined}
-                                                onCitationClicked={(c, n) => onShowCitation(c, n, index)}
-                                                onThoughtProcessClicked={() => onThoughtProcessClicked(index)}
-                                                onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
-                                                onFollowupQuestionClicked={q => makeApiRequestGpt(q)}
-                                                showFollowupQuestions={false}
-                                                showSources={true}
-                                            />
-                                        </div>
+                            {answers.map((answer, index) => (
+                                <div key={index}>
+                                    <UserChatMessage message={answer[0]} />
+                                    <div className={styles.chatMessageGpt}>
+                                        <Answer
+                                            key={index}
+                                            answer={answer[1]}
+                                            isSelected={selectedAnswer === index && activeAnalysisPanelTab !== undefined}
+                                            onCitationClicked={(c, n) => onShowCitation(c, n, index)}
+                                            onThoughtProcessClicked={() => onThoughtProcessClicked(index)}
+                                            onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
+                                            onFollowupQuestionClicked={q => makeApiRequestGpt(q)}
+                                            showFollowupQuestions={false}
+                                            showSources={true}
+                                        />
                                     </div>
-                                ))}
-                                {isLoading && (
+                                </div>
+                            ))}
+                            {isLoading && (
                                 <>
                                     <UserChatMessage message={lastQuestionRef.current} />
                                     <div className={styles.chatMessageGptMinWidth}>
@@ -318,10 +319,10 @@ const Chat = () => {
                     )}
 
                     <div className={styles.chatInput}>
-                        <QuestionInput clearOnSend placeholder={placeholderText} disabled={isLoading} onSend={question => makeApiRequestGpt(question)} />
+                        <QuestionInput clearOnSend placeholder={placeholderText} disabled={isLoading} onSend={(question, file) => makeApiRequestGpt(question, file)} />
                     </div>
                 </div>
-
+        
                 {answers.length > 0 && (
                     <AnalysisPanel
                         activeTab={activeAnalysisPanelTab as AnalysisPanelTabs}
@@ -333,9 +334,9 @@ const Chat = () => {
                         fileType={fileType}
                         fileName={fileName} 
                     />
-
+                
                 )}
-
+                
                 <Panel
                     headerText="Configure answer generation"
                     isOpen={isConfigPanelOpen}

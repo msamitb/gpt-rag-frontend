@@ -312,12 +312,27 @@ def check_authorization():
 @app.route("/chatgpt", methods=["POST"])
 def chatgpt():
     start_time = time.time()    
-    conversation_id = request.json["conversation_id"]
-    question = request.json["query"]
-    
+    # Support both JSON and multipart/form-data
+    logging.info(f"[webbackend] request.content_type check: {request.content_type}")
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        logging.info(f"[webbackend] Inside to check file: {question}")
+        conversation_id = request.form.get("conversation_id")
+        question = request.form.get("query")
+        file = request.files.get("file")
+        logging.info(f"[webbackend] Inside to check file: {file}")
+        overrides = request.form.get("overrides")
+        try:
+            overrides = json.loads(overrides) if overrides else None
+        except Exception:
+            overrides = None
+    else:
+        conversation_id = request.json["conversation_id"]
+        question = request.json["query"]
+        file = None
+
     logging.info("[webbackend] conversation_id: " + conversation_id)    
     logging.info("[webbackend] question: " + question)
-    
+    logging.info("[webbackend] file: " + str(file))
     auth_info = check_authorization()
     
     if not auth_info['authorized']:

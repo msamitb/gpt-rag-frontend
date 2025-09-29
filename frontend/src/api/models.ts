@@ -30,6 +30,7 @@ export interface Thought {
 
 export type AskResponse = {
     answer: string;
+    file?: File | null;
     thoughts: string | Thought[] | null;
     data_points: string[];
     error?: string;
@@ -44,11 +45,16 @@ export type TransactionData = {
 export type AskResponseGpt= {
     conversation_id: string;
     answer: string;
+    file?: File | null;
     current_state: string;
     thoughts: string | Thought[] | null;
     data_points: string[];
     transaction_data?: TransactionData;
     error?: string;
+    // Added for file preview support
+    filePreview?: string | null;
+    fileType?: string;
+    fileName?: string;
 };
 
 export type ChatTurn = {
@@ -67,6 +73,7 @@ export type ChatRequestGpt = {
     approach: Approaches;
     conversation_id: string;
     query: string;
+    file?: File | null;
     overrides?: AskRequestOverrides;
 };
 
