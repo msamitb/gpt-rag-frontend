@@ -315,9 +315,9 @@ def chatgpt():
     # Support both JSON and multipart/form-data
     logging.info(f"[webbackend] request.content_type check: {request.content_type}")
     if request.content_type and request.content_type.startswith("multipart/form-data"):
-        logging.info(f"[webbackend] Inside to check file: {question}")
         conversation_id = request.form.get("conversation_id")
         question = request.form.get("query")
+        logging.info(f"[webbackend] Inside to check file: {question}")
         file = request.files.get("file")
         logging.info(f"[webbackend] Inside to check file: {file}")
         overrides = request.form.get("overrides")
@@ -333,6 +333,7 @@ def chatgpt():
     logging.info("[webbackend] conversation_id: " + conversation_id)    
     logging.info("[webbackend] question: " + question)
     logging.info("[webbackend] file: " + str(file))
+    logging.info("[webbackend] ORCHESTRATOR_ENDPOINT: " + ORCHESTRATOR_ENDPOINT)
     auth_info = check_authorization()
     
     if not auth_info['authorized']:

@@ -43,10 +43,12 @@ const Chat = () => {
     const [activeAnalysisPanelTab, setActiveAnalysisPanelTab] = useState<AnalysisPanelTabs | undefined>(undefined);
 
     const [selectedAnswer, setSelectedAnswer] = useState<number>(0);
-    // Store tuple: [user question text, response, optional image preview data URL]
-    const [answers, setAnswers] = useState<[user: string, response: AskResponse, imagePreview?: string | null][]>([]);
-    // Image for the in-flight user question (shown while loading or on error)
-    const [pendingImage, setPendingImage] = useState<string | null>(null);
+    // answers state schema:
+    // [ userQuestion: string, backendResponse: AskResponse, imagePreview?: string ]
+    // imagePreview is a temporary objectURL for client-side display of an attached image.
+    // We optimistically insert a placeholder response (answer: "") with the preview so the image appears immediately.
+    // When the backend response arrives we replace the placeholder preserving the preview.
+    const [answers, setAnswers] = useState<[user: string, response: AskResponse, imagePreview?: string][]>([]);
 
     const [userId, setUserId] = useState<string>("");
     const triggered = useRef(false);
@@ -62,18 +64,6 @@ const Chat = () => {
 
         try {
             const history: ChatTurn[] = answers.map(a => ({ user: a[0], bot: a[1].answer }));
-
-            // Prepare image preview immediately (so it displays during loading)
-            let imageDataUrl: string | null = null;
-            if (file && file.type.startsWith("image/")) {
-                imageDataUrl = await new Promise<string | null>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = e => resolve(e.target?.result as string | null);
-                    reader.onerror = () => resolve(null);
-                    reader.readAsDataURL(file);
-                });
-                setPendingImage(imageDataUrl);
-            }
             const request: ChatRequestGpt = {
                 history: [...history, { user: question, bot: undefined }],
                 approach: Approaches.ReadRetrieveRead,
@@ -98,8 +88,18 @@ const Chat = () => {
                 result.thoughts = "No thought process available.";
             }
 
-            setAnswers([...answers, [question, result, imageDataUrl]]);
-            setPendingImage(null);
+            // Replace optimistic placeholder (if present) instead of adding duplicate
+            setAnswers(prev => {
+                if (prev.length > 0) {
+                    const last = prev[prev.length - 1];
+                    if (last[0] === question && last[1].answer === "") {
+                        // Preserve image preview if it existed
+                        const imagePreview = last[2];
+                        return [...prev.slice(0, -1), [question, result, imagePreview]];
+                    }
+                }
+                return [...prev, [question, result]];
+            });
             setUserId(result.conversation_id);
 
             // Voice Synthesis
@@ -139,7 +139,7 @@ const Chat = () => {
         error && setError(undefined);
         setActiveCitation(undefined);
         setActiveAnalysisPanelTab(undefined);
-        setAnswers([]);
+    setAnswers([]);
         setUserId("");
     };
 
@@ -291,51 +291,62 @@ const Chat = () => {
                         </div>
                     ) : (
                         <div className={styles.chatMessageStream}>
-                            {answers.map((answer, index) => (
-                                <div key={index}>
-                                    <UserChatMessage message={answer[0]} imageUrl={answer[2]} />
-                                    <div className={styles.chatMessageGpt}>
-                                        <Answer
-                                            key={index}
-                                            answer={answer[1]}
-                                            isSelected={selectedAnswer === index && activeAnalysisPanelTab !== undefined}
-                                            onCitationClicked={(c, n) => onShowCitation(c, n, index)}
-                                            onThoughtProcessClicked={() => onThoughtProcessClicked(index)}
-                                            onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
-                                            onFollowupQuestionClicked={q => makeApiRequestGpt(q)}
-                                            showFollowupQuestions={false}
-                                            showSources={true}
-                                        />
+                            {answers.map((answer, index) => {
+                                const isPlaceholder = answer[1].answer === ""; // optimistic entry awaiting backend
+                                const isLast = index === answers.length - 1;
+                                return (
+                                    <div key={index}>
+                                        <UserChatMessage message={answer[0]} imageSrc={answer[2]} />
+                                        {isPlaceholder ? (
+                                            <div className={styles.chatMessageGptMinWidth}>
+                                                {error && isLast ? (
+                                                    <AnswerError
+                                                        error={error.toString() === "SyntaxError: Unexpected end of JSON input"
+                                                            ? error_message_text + "Error: Orchestrator call failed or did not return a valid response."
+                                                            : error_message_text + error.toString()}
+                                                        onRetry={() => makeApiRequestGpt(answer[0])}
+                                                    />
+                                                ) : (
+                                                    <AnswerLoading />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className={styles.chatMessageGpt}>
+                                                <Answer
+                                                    key={index}
+                                                    answer={answer[1]}
+                                                    isSelected={selectedAnswer === index && activeAnalysisPanelTab !== undefined}
+                                                    onCitationClicked={(c, n) => onShowCitation(c, n, index)}
+                                                    onThoughtProcessClicked={() => onThoughtProcessClicked(index)}
+                                                    onSupportingContentClicked={() => onToggleTab(AnalysisPanelTabs.SupportingContentTab, index)}
+                                                    onFollowupQuestionClicked={q => makeApiRequestGpt(q)}
+                                                    showFollowupQuestions={false}
+                                                    showSources={true}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
-                            {isLoading && (
-                                <>
-                                    <UserChatMessage message={lastQuestionRef.current} imageUrl={pendingImage} />
-                                    <div className={styles.chatMessageGptMinWidth}>
-                                        <AnswerLoading />
-                                    </div>
-                                </>
-                            )}
-                            {error ? (
-                                <>
-                                    <UserChatMessage message={lastQuestionRef.current} imageUrl={pendingImage} />
-                                    <div className={styles.chatMessageGptMinWidth}>
-                                        <AnswerError 
-                                            error={error.toString() === "SyntaxError: Unexpected end of JSON input" 
-                                                ? error_message_text + "Error: Orchestrator call failed or did not return a valid response." 
-                                                : error_message_text + error.toString()} 
-                                            onRetry={() => makeApiRequestGpt(lastQuestionRef.current)} 
-                                        />
-                                    </div>
-                                </>
-                            ) : null}
+                                );
+                            })}
                             <div ref={chatMessageStreamEnd} />
                         </div>
                     )}
 
                     <div className={styles.chatInput}>
-                        <QuestionInput clearOnSend placeholder={placeholderText} disabled={isLoading} onSend={(question, file) => makeApiRequestGpt(question, file)} />
+                        <QuestionInput
+                            clearOnSend
+                            placeholder={placeholderText}
+                            disabled={isLoading}
+                            onSend={(question, file) => {
+                                let preview: string | undefined = undefined;
+                                if (file && file.type.startsWith("image/")) {
+                                    preview = URL.createObjectURL(file);
+                                }
+                                // Optimistically add user message with image preview (without bot answer yet)
+                                setAnswers(prev => [...prev, [question, { answer: "", thoughts: null, data_points: [] } as AskResponse, preview]]);
+                                makeApiRequestGpt(question, file);
+                            }}
+                        />
                     </div>
                 </div>
         

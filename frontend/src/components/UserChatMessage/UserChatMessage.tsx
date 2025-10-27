@@ -1,21 +1,23 @@
 import styles from "./UserChatMessage.module.css";
-import React from "react";
 
 interface Props {
     message: string;
-    imageUrl?: string | null;
+    imageSrc?: string;
 }
 
-export const UserChatMessage: React.FC<Props> = ({ message, imageUrl }) => {
+export const UserChatMessage = ({ message, imageSrc }: Props) => {
     return (
         <div className={styles.container}>
             <div className={styles.message}>
                 <div>{message}</div>
-                {imageUrl && (
+                {imageSrc && (
                     <img
-                        src={imageUrl}
-                        alt="user attachment"
-                        className={styles.imageAttachment}
+                        src={imageSrc}
+                        alt="User attachment"
+                        className={styles.image}
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                        }}
                     />
                 )}
             </div>

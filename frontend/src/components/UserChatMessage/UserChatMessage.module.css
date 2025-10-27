@@ -14,12 +14,11 @@
     outline: transparent solid 1px;
 }
 
-.imageAttachment {
-    display: block;
+.image {
     margin-top: 12px;
-    max-width: 260px;
-    max-height: 180px;
+    max-width: 240px;
+    max-height: 240px;
     border-radius: 6px;
-    object-fit: cover;
-    border: 1px solid #d0d4f4;
+    object-fit: contain;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
