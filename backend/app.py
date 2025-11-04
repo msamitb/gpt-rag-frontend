@@ -355,7 +355,8 @@ def chatgpt():
         url = ORCHESTRATOR_ENDPOINT
         payload = {
             "conversation_id": conversation_id,
-            "question": question,
+            # "question": "analyse the image" if (question is None or not str(question).strip()) else question,
+            "question": "Examine the image",
             "client_principal_id": client_principal_id,
             "client_principal_name": client_principal_name,
             "client_group_names": client_group_names
