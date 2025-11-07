@@ -1,0 +1,166 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.dropZone {
+    border: 2px dashed #888;
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.25s, border-color 0.25s;
+    background: #fafafa;
+}
+
+.dropZone.disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    filter: grayscale(0.2);
+    position: relative;
+}
+
+.dropZone.dragActive {
+    background: #eef7ff;
+    border-color: #1a76d2;
+}
+
+.previewWrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.thumbnailWrapper {
+    position: relative;
+    width: 420px;
+    max-width: 100%;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.thumbnailSkeleton {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, #eee 25%, #ddd 37%, #eee 63%);
+    background-size: 400% 100%;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+}
+
+.metaBlock {
+    font-size: 13px;
+    background: #f5f5f5;
+    border: 1px solid #e1e1e1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    width: 420px;
+    max-width: 100%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.metaRow { line-height: 1.4; }
+
+.previewImage {
+    max-width: 420px;
+    max-height: 320px;
+    object-fit: contain;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+.actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.localLoadingOverlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(2px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+    border-radius: 8px;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 6px solid rgba(0,0,0,0.15);
+    border-top-color: #1a76d2;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loadingLabel { font-size: 0.9rem; font-weight: 600; color: #1a2d3f; letter-spacing: .4px; }
+
+.jsonResultContainer {
+    border: 1px solid #d1d1d1;
+    border-radius: 6px;
+    padding: 16px;
+    background: #1e1e1e;
+    color: #eaeaea;
+    font-family: "Consolas", monospace;
+    max-height: 400px;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
+.placeholderText {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.errorText {
+    color: #b30000;
+    font-weight: 600;
+}
+
+.headerRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.copyButton {
+    background: #2d2d2d;
+    color: #eaeaea;
+    border: 1px solid #444;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.copyButton:hover:not(:disabled) {
+    background: #3d3d3d;
+}
+
+.copyButton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

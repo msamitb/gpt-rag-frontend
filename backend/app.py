@@ -1,10 +1,12 @@
 import json
+import base64
 import logging
 import os
 import time
 from urllib.parse import unquote
 import uuid
 import requests
+from werkzeug.utils import secure_filename
 
 from azure.identity import ManagedIdentityCredential, AzureCliCredential, ChainedTokenCredential
 from azure.storage.blob import BlobServiceClient
@@ -38,6 +40,7 @@ SPEECH_REGION = read_env_variable('SPEECH_REGION')
 ORCHESTRATOR_ENDPOINT = read_env_variable('ORCHESTRATOR_ENDPOINT')
 STORAGE_ACCOUNT = read_env_variable('STORAGE_ACCOUNT')
 LOGLEVEL = read_env_variable('LOGLEVEL', 'INFO').upper()
+UPLOAD_CONTAINER = read_env_variable('AZURE_STORAGE_CONTAINER_NAME', 'documents').lower()
 
 # MSAL / OIDC configuration for custom authentication
 ENABLE_AUTHENTICATION = read_env_boolean('ENABLE_AUTHENTICATION')
@@ -312,6 +315,67 @@ def check_authorization():
 @app.route("/chatgpt", methods=["POST"])
 def chatgpt():
     start_time = time.time()    
+    time.sleep(7)
+    response = {
+            "id": "d45e68ec-8515-43ab-bd3c-8c99916ad0a2",
+            "status": "Succeeded",
+            "result": {
+                "analyzerId": "auto-labeling-model-1758607386215-615",
+                "apiVersion": "2025-05-01-preview",
+                "createdAt": "2025-11-04T11:07:24Z",
+                "warnings": [],
+                "contents": [
+                    {
+                        "markdown": "![image](image)\n",
+                        "fields": {
+                            "CompanyName": {
+                                "type": "string",
+                                "valueString": "Toyota"
+                            },
+                            "CarColor": {
+                                "type": "string",
+                                "valueString": "Silver"
+                            },
+                            "Damage_severity": {
+                                "type": "string",
+                                "valueString": "Moderate"
+                            },
+                            "Model_name": {
+                                "type": "string",
+                                "valueString": "Corolla"
+                            },
+                            "Damage_annotation": {
+                                "type": "string",
+                                "valueString": "The rear bumper has a noticeable dent."
+                            },
+                            "Damage_classification": {
+                                "type": "string",
+                                "valueString": "Dent"
+                            }
+                        },
+                        "kind": "document",
+                        "startPageNumber": 1,
+                        "endPageNumber": 1,
+                        "unit": "pixel",
+                        "pages": [
+                            {
+                                "pageNumber": 1,
+                                "spans": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            "usage": {
+                "tokens": {
+                    "contextualization": 1000,
+                    "input": 395,
+                    "output": 41
+                }
+            }
+        }
+    return jsonify(response)
+
     # Support both JSON and multipart/form-data
     logging.info(f"[webbackend] request.content_type check: {request.content_type}")
     if request.content_type and request.content_type.startswith("multipart/form-data"):
@@ -333,7 +397,6 @@ def chatgpt():
     logging.info("[webbackend] conversation_id: " + conversation_id)    
     logging.info("[webbackend] question: " + question)
     logging.info("[webbackend] file: " + str(file))
-    logging.info("[webbackend] ORCHESTRATOR_ENDPOINT: " + ORCHESTRATOR_ENDPOINT)
     auth_info = check_authorization()
     
     if not auth_info['authorized']:
@@ -355,12 +418,63 @@ def chatgpt():
         url = ORCHESTRATOR_ENDPOINT
         payload = {
             "conversation_id": conversation_id,
-            # "question": "analyse the image" if (question is None or not str(question).strip()) else question,
+            # "question": question,
             "question": "Examine the image",
             "client_principal_id": client_principal_id,
             "client_principal_name": client_principal_name,
             "client_group_names": client_group_names
         }
+
+        logging.debug(f"[webbackend] Read before reading file bytes.")
+
+        # If a file was uploaded, store it in Azure Blob Storage and pass blob reference
+        if file:
+            logging.debug(f"[webbackend] file is available")
+            try:
+                # Read file bytes
+                file_bytes = file.read()
+                logging.debug(f"[webbackend] Read {len(file_bytes)} bytes from uploaded file '{file.filename}'.")
+                original_name = secure_filename(file.filename) or 'uploaded_file'
+                logging.debug(f"[webbackend] Secured original filename: {original_name}")
+                unique_suffix = uuid.uuid4().hex
+                logging.debug(f"[webbackend] Generated unique suffix: {unique_suffix}")
+                blob_name = f"{conversation_id}_{unique_suffix}_{original_name}"
+                logging.debug(f"[webbackend] Constructed blob name: {blob_name}")
+
+                # Acquire credential chain (Managed Identity preferred, fallback to Azure CLI)
+                client_credential = ChainedTokenCredential(
+                    ManagedIdentityCredential(),
+                    AzureCliCredential()
+                )
+                logging.debug("[webbackend] Acquired ChainedTokenCredential for blob upload.")
+                blob_service_client = BlobServiceClient(
+                    f"https://{STORAGE_ACCOUNT}.blob.core.windows.net",
+                    client_credential
+                )
+                logging.debug(f"[webbackend] Initialized BlobServiceClient for account '{STORAGE_ACCOUNT}'.")
+
+                # Ensure container exists (idempotent)
+                try:
+                    container_client = blob_service_client.get_container_client(UPLOAD_CONTAINER)
+                    if not container_client.exists():
+                        logging.info(f"[webbackend] Creating upload container '{UPLOAD_CONTAINER}'")
+                        container_client.create_container()
+                    else:
+                        logging.debug(f"[webbackend] Upload container '{UPLOAD_CONTAINER}' already exists.")
+                except Exception as ce:
+                    logging.warning(f"[webbackend] Could not verify/create container '{UPLOAD_CONTAINER}': {ce}")
+                    container_client = blob_service_client.get_container_client(UPLOAD_CONTAINER)
+                logging.debug(f"[webbackend] Obtained container client for '{UPLOAD_CONTAINER}'.")
+
+                blob_client = container_client.get_blob_client(blob_name)
+                logging.debug(f"[webbackend] Obtained blob client for blob '{blob_name}'. Beginning upload.")
+                blob_client.upload_blob(file_bytes, overwrite=True)
+                logging.info(f"[webbackend] Uploaded file to blob '{blob_name}' in container '{UPLOAD_CONTAINER}' (size={len(file_bytes)} bytes)")
+                payload["uploaded_file_blob"] = blob_name
+                payload["uploaded_file_content_type"] = file.content_type
+                logging.debug(f"[webbackend] Added blob reference and content type '{file.content_type}' to payload.")
+            except Exception as fe:
+                logging.exception("[webbackend] Failed uploading file to Azure Blob Storage; continuing without file reference")
 
         if FORWARD_ACCESS_TOKEN_TO_ORCHESTRATOR and access_token:
             logging.info("[webbackend] Forwarding access token to orchestrator.")
@@ -370,7 +484,6 @@ def chatgpt():
             'Content-Type': 'application/json',
             'x-functions-key': function_key  
         }
-        logging.info(f"[webbackend] calling orchestrator at: {ORCHESTRATOR_ENDPOINT}")        
         response = requests.post(url, headers=headers, json=payload)
         logging.info(f"[webbackend] response: {response.text[:100]}...")
         return response.text
